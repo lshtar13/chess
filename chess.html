@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>chess.mw</title>
+    <style type="text/css">
+      canvas {
+        border: 1px solid black;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="Canvas" width="800" height="800"></canvas>
+  </body>
+  <script>
+    const X = 8;
+    const Y = 8;
+    const Width = 100;
+    const Height = 100;
+    const MaxWidth = Width * X;
+    const MaxHeight = Height * Y;
+    const canvas = document.getElementById("Canvas");
+    const ctx = canvas.getContext("2d");
+    const indexs = {
+      pawn: 0,
+      rook: 1,
+      knight: 2,
+      bishop: 3,
+      queen: 4,
+      king: 5,
+    };
+    const positions = [0, 0, 1, 2, 3, 4];
+    const names = ["pawn", "rook", "knight", "bishop", "queen", "king"];
+    const directions = [
+      [
+        { x: 0, y: 1 },
+        { x: 0, y: -1 },
+      ],
+      [],
+      [
+        { x: 1, y: 2 },
+        { x: 2, y: 1 },
+        { x: -1, y: 2 },
+        { x: -2, y: 1 },
+        { x: 1, y: -2 },
+        { x: 2, y: -1 },
+        { x: -1, y: -2 },
+        { x: -2, y: -1 },
+      ],
+      [],
+      [],
+      [
+        { x: 0, y: 1 },
+        { x: 1, y: 0 },
+        { x: 0, y: -1 },
+        { x: -1, y: 0 },
+      ],
+    ];
+
+    for (var i = 1; i < X; ++i) {
+      const idxs = [indexs.rook, indexs.queen];
+      idxs.forEach((idx) => {
+        directions[idx].push({ x: i, y: 0 });
+        directions[idx].push({ x: -i, y: 0 });
+        directions[idx].push({ x: 0, y: i });
+        directions[idx].push({ x: 0, y: -i });
+      });
+    }
+
+    for (var i = 1; i < X; ++i) {
+      const idxs = [indexs.bishop, indexs.queen];
+      idxs.forEach((idx) => {
+        directions[idx].push({ x: i, y: i });
+        directions[idx].push({ x: -i, y: -i });
+        directions[idx].push({ x: -i, y: i });
+        directions[idx].push({ x: i, y: -i });
+      });
+    }
+  </script>
+
+  <script>
+    class Square {
+      constructor(x, y, isWhite) {
+        this.x = x;
+        this.y = y;
+        this.isWhite = isWhite;
+        this.colorScript = isWhite
+          ? "rgba(115, 0, 0, 1)"
+          : "rgba(0, 115, 0, 1)";
+      }
+
+      fill() {
+        ctx.fillStyle = this.colorScript;
+        ctx.fillRect(this.x * Width, this.y * Height, Width, Height);
+      }
+    }
+  </script>
+
+  <script>
+    class Piece {
+      constructor(sort, isWhite, directions) {
+        this.sort = sort;
+        this.isWhite = isWhite;
+        this.directions = directions;
+      }
+
+      fill(x, y) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, x * Width, y * Height, Width, Height);
+        };
+        img.src = "./chessElement/" + this.sort + ".svg";
+      }
+    }
+  </script>
+
+  <script>
+    class Board {
+      constructor() {
+        this.squares = [];
+        for (var y = 0; y < Y; ++y) {
+          this.squares.push([]);
+          for (var x = 0; x < X; ++x) {
+            this.squares[y].push(new Square(x, y, (x + y) % 2));
+          }
+        }
+      }
+
+      fill() {
+        for (var y = 0; y < Y; ++y) {
+          for (var x = 0; x < X; ++x) {
+            this.squares[y][x].fill();
+            if (this.squares[y][x].piece) {
+              this.squares[y][x].piece.fill(x, y);
+            }
+          }
+        }
+      }
+
+      makePieces() {
+        //white
+        this.makeKQRNB(0, true);
+        this.makePawns(1, true);
+
+        //black
+        this.makePawns(Y - 2, false);
+        this.makeKQRNB(Y - 1, false);
+      }
+
+      makePawns(y, isWhite) {
+        for (var x = 0; x < X; ++x) {
+          this.squares[y][x].piece = new Piece(
+            names[indexs.pawn],
+            isWhite,
+            directions[indexs.pawn]
+          );
+        }
+      }
+
+      makeKQRNB(y, isWhite) {
+        for (var idx = 1; idx < 4; ++idx) {
+          this.squares[y][positions[idx]].piece = new Piece(
+            names[idx],
+            isWhite,
+            directions[idx]
+          );
+
+          this.squares[y][X - 1 - positions[idx]].piece = new Piece(
+            names[idx],
+            isWhite,
+            directions[idx]
+          );
+        }
+
+        this.squares[y][positions[indexs.queen]].piece = new Piece(
+          names[indexs.queen],
+          isWhite,
+          directions[indexs.queen]
+        );
+        this.squares[y][positions[indexs.king]].piece = new Piece(
+          names[indexs.king],
+          isWhite,
+          directions[indexs.king]
+        );
+      }
+    }
+  </script>
+
+  <script>
+    class Game {
+      constructor() {
+        this.board = new Board();
+        this.board.makePieces();
+
+        this.board.fill();
+      }
+
+      convertBoard() {}
+    }
+  </script>
+
+  <script>
+    const game = new Game();
+  </script>
+</html>
