@@ -19,8 +19,6 @@
     const Height = 100;
     const MaxWidth = Width * X;
     const MaxHeight = Height * Y;
-    const canvas = document.getElementById("Canvas");
-    const ctx = canvas.getContext("2d");
     const indexs = {
       pawn: 0,
       rook: 1,
@@ -31,50 +29,93 @@
     };
     const positions = [0, 0, 1, 2, 3, 4];
     const names = ["pawn", "rook", "knight", "bishop", "queen", "king"];
-    const directions = [
-      [
-        { x: 0, y: 1 },
-        { x: 0, y: -1 },
-      ],
-      [],
-      [
-        { x: 1, y: 2 },
-        { x: 2, y: 1 },
-        { x: -1, y: 2 },
-        { x: -2, y: 1 },
-        { x: 1, y: -2 },
-        { x: 2, y: -1 },
-        { x: -1, y: -2 },
-        { x: -2, y: -1 },
-      ],
-      [],
-      [],
-      [
-        { x: 0, y: 1 },
-        { x: 1, y: 0 },
-        { x: 0, y: -1 },
-        { x: -1, y: 0 },
-      ],
-    ];
+    const images = {};
+  </script>
 
-    for (var i = 1; i < X; ++i) {
-      const idxs = [indexs.rook, indexs.queen];
-      idxs.forEach((idx) => {
-        directions[idx].push({ x: i, y: 0 });
-        directions[idx].push({ x: -i, y: 0 });
-        directions[idx].push({ x: 0, y: i });
-        directions[idx].push({ x: 0, y: -i });
+  <script>
+    function isValidCord(x, y, isWhite) {
+      // ouf of bound 0
+      // enemy 1
+      // empty 2
+      if (x < 0 || x >= X || y < 0 || y >= Y) {
+        return 0;
+      } else if (board.squares[y][x].piece) {
+        if (board.squares[y][x].piece.isWhite == isWhite) {
+          return 0;
+        } else {
+          return 1;
+        }
+      } else {
+        return 2;
+      }
+    }
+
+    function pawn(x, y, isWhite) {
+      var result = [];
+      var _x, _y, dx, dy;
+      if (isWhite) {
+        dx = -1;
+        dy = -1;
+      } else {
+        dx = 1;
+        dy = 1;
+      }
+
+      // first 2 step
+      _x = x;
+      _y = y + 2 * dy;
+      if (isValidCord(_x, _y, isWhite) == 2) {
+        result.push({ x: _x, y: _y });
+      }
+
+      // normal
+      _x = x;
+      _y = y + dy;
+      if (isValidCord(_x, _y, isWhite) == 2) {
+        result.push({ x: _x, y: _y });
+      }
+
+      // kill
+      _x = x + dx;
+      _y = y + dy;
+      if (isValidCord(_x, _y) == 1) {
+        result.push({ x: _x, y: _y });
+      }
+
+      _x = x - dx;
+      _y = y + dy;
+      if (isValidCord(_x, _y) == 1) {
+        result.push({ x: _x, y: _y });
+      }
+
+      return result;
+    }
+
+    const availFunctions = {
+      pawn: pawn,
+    };
+  </script>
+
+  <script>
+    function loadImage(key, src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          images[key] = img;
+          resolve(img);
+        };
+        img.onerror = reject;
+        img.src = src;
       });
     }
 
-    for (var i = 1; i < X; ++i) {
-      const idxs = [indexs.bishop, indexs.queen];
-      idxs.forEach((idx) => {
-        directions[idx].push({ x: i, y: i });
-        directions[idx].push({ x: -i, y: -i });
-        directions[idx].push({ x: -i, y: i });
-        directions[idx].push({ x: i, y: -i });
+    async function loadImages(ext) {
+      const imagePromises = names.map(async (name) => {
+        const src = "./chessElement/" + name + ext;
+        await loadImage(name, src);
       });
+
+      return Promise.all(imagePromises);
     }
   </script>
 
@@ -98,25 +139,40 @@
 
   <script>
     class Piece {
-      constructor(sort, isWhite, directions) {
+      constructor(x, y, sort, isWhite, ctx) {
+        this.x = x;
+        this.y = y;
         this.sort = sort;
         this.isWhite = isWhite;
-        this.directions = directions;
+        this.ctx = ctx;
+        this.avail = [];
       }
 
-      fill(x, y) {
-        const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, x * Width, y * Height, Width, Height);
-        };
-        img.src = "./chessElement/" + this.sort + ".svg";
+      fill() {
+        this.ctx.drawImage(
+          images[this.sort],
+          this.x * Width,
+          this.y * Height,
+          Width,
+          Height
+        );
+      }
+
+      updateAvail(whiteTurn) {
+        return (this.avail =
+          this.isWhite == board.whiteTurn
+            ? availFunctions[this.sort](this.x, this.y, this.isWhite)
+            : []);
       }
     }
   </script>
 
   <script>
     class Board {
-      constructor() {
+      constructor(canvas, ctx) {
+        this.canvas = canvas;
+        this.ctx = ctx;
+        this.whiteTurn = true;
         this.squares = [];
         for (var y = 0; y < Y; ++y) {
           this.squares.push([]);
@@ -139,67 +195,80 @@
 
       makePieces() {
         //white
-        this.makeKQRNB(0, true);
-        this.makePawns(1, true);
+        this.makeKQRNB(0, false);
+        this.makePawns(1, false);
 
         //black
-        this.makePawns(Y - 2, false);
-        this.makeKQRNB(Y - 1, false);
+        this.makePawns(Y - 2, true);
+        this.makeKQRNB(Y - 1, true);
       }
 
       makePawns(y, isWhite) {
         for (var x = 0; x < X; ++x) {
           this.squares[y][x].piece = new Piece(
+            x,
+            y,
             names[indexs.pawn],
             isWhite,
-            directions[indexs.pawn]
+            this.ctx
           );
         }
       }
 
       makeKQRNB(y, isWhite) {
+        var x;
         for (var idx = 1; idx < 4; ++idx) {
-          this.squares[y][positions[idx]].piece = new Piece(
+          x = positions[idx];
+          this.squares[y][x].piece = new Piece(
+            x,
+            y,
             names[idx],
             isWhite,
-            directions[idx]
+            this.ctx
           );
 
-          this.squares[y][X - 1 - positions[idx]].piece = new Piece(
+          x = X - 1 - positions[idx];
+          this.squares[y][x].piece = new Piece(
+            x,
+            y,
             names[idx],
             isWhite,
-            directions[idx]
+            this.ctx
           );
         }
 
-        this.squares[y][positions[indexs.queen]].piece = new Piece(
-          names[indexs.queen],
-          isWhite,
-          directions[indexs.queen]
-        );
-        this.squares[y][positions[indexs.king]].piece = new Piece(
-          names[indexs.king],
-          isWhite,
-          directions[indexs.king]
-        );
+        for (var idx = 4; idx < 6; ++idx) {
+          x = positions[idx];
+          this.squares[y][x].piece = new Piece(
+            x,
+            y,
+            names[idx],
+            isWhite,
+            this.ctx
+          );
+        }
+      }
+
+      setMouseClick() {
+        this.canvas.onclick = (event) => {
+          const _x = Math.trunc(event.clientX / Width);
+          const _y = Math.trunc(event.clientY / Height);
+
+          console.log(board.squares[_y][_x].piece.updateAvail(this.whiteTurn));
+        };
       }
     }
   </script>
 
   <script>
-    class Game {
-      constructor() {
-        this.board = new Board();
-        this.board.makePieces();
-
-        this.board.fill();
-      }
-
-      convertBoard() {}
-    }
-  </script>
-
-  <script>
-    const game = new Game();
+    const canvas = document.getElementById("Canvas");
+    const ctx = canvas.getContext("2d");
+    const board = new Board(canvas, ctx);
+    loadImages(".svg").then(() => {
+      console.log("images loaded...");
+      board.makePieces();
+      board.fill();
+      board.setMouseClick();
+    });
   </script>
 </html>
