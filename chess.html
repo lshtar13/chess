@@ -347,7 +347,7 @@
         if (this.squares[_y][_x].piece) {
           (this.x = _x), (this.y = _y);
           this.avail = this.squares[_y][_x].piece.updateAvail();
-          for (idx = 0, _x, _y; this.avail[idx]; ++idx) {
+          for (var idx = 0, _x, _y; this.avail[idx]; ++idx) {
             var _x = this.avail[idx].x;
             var _y = this.avail[idx].y;
 
@@ -371,7 +371,7 @@
         this.canvas.onclick = (event) => {
           const _x = Math.trunc(event.clientX / Width);
           const _y = Math.trunc(event.clientY / Height);
-          handleMouseClick(_x, _y);
+          this.handleMouseClick(_x, _y);
         };
       }
     }
