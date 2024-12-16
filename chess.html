@@ -33,66 +33,150 @@
   </script>
 
   <script>
+    const OOB = 0,
+      ENEMY = 1,
+      EMPTY = 4;
     function isValidCord(x, y, isWhite) {
-      // ouf of bound 0
-      // enemy 1
-      // empty 2
       if (x < 0 || x >= X || y < 0 || y >= Y) {
-        return 0;
+        return OOB;
       } else if (board.squares[y][x].piece) {
         if (board.squares[y][x].piece.isWhite == isWhite) {
-          return 0;
+          return OOB;
         } else {
-          return 1;
+          return ENEMY;
         }
       } else {
-        return 2;
+        return EMPTY;
       }
     }
 
-    function pawn(x, y, isWhite) {
-      var result = [];
-      var _x, _y, dx, dy;
-      if (isWhite) {
-        dx = -1;
-        dy = -1;
-      } else {
-        dx = 1;
-        dy = 1;
-      }
+    const directions = {
+      discrete: {
+        forward: [{ dx: 0, dy: -1 }],
+        double: [{ dx: 0, dy: -2 }],
+        backward: [{ dx: 0, dy: 1 }],
+        lShape: [
+          { dx: 1, dy: 2 },
+          { dx: 2, dy: 1 },
+          { dx: -1, dy: -2 },
+          { dx: -2, dy: -1 },
+          { dx: -1, dy: 2 },
+          { dx: -2, dy: 1 },
+          { dx: 1, dy: -2 },
+          { dx: 2, dy: -1 },
+        ],
+        diagonal: [
+          { dx: 1, dy: -1 },
+          { dx: -1, dy: -1 },
+          { dx: 1, dy: 1 },
+          { dx: -1, dy: 1 },
+        ],
+      },
+      continuous: {
+        diagonal: [
+          { dx: 1, dy: 1 },
+          { dx: 1, dy: -1 },
+          { dx: -1, dy: 1 },
+          { dx: -1, dy: -1 },
+        ],
+        orthogonal: [
+          { dx: 1, dy: 0 },
+          { dx: 0, dy: 1 },
+          { dx: -1, dy: 0 },
+          { dx: 0, dy: -1 },
+        ],
+      },
+    };
 
-      // first 2 step
-      _x = x;
-      _y = y + 2 * dy;
-      if (isValidCord(_x, _y, isWhite) == 2) {
-        result.push({ x: _x, y: _y });
-      }
-
-      // normal
-      _x = x;
-      _y = y + dy;
-      if (isValidCord(_x, _y, isWhite) == 2) {
-        result.push({ x: _x, y: _y });
-      }
-
-      // kill
-      _x = x + dx;
-      _y = y + dy;
-      if (isValidCord(_x, _y) == 1) {
-        result.push({ x: _x, y: _y });
-      }
-
-      _x = x - dx;
-      _y = y + dy;
-      if (isValidCord(_x, _y) == 1) {
-        result.push({ x: _x, y: _y });
-      }
+    function discreteMove(x, y, isWhite, direction, flag) {
+      const result = [];
+      var _x, _y, status;
+      direction.forEach((d) => {
+        _x = x + d.dx;
+        _y = y + d.dy * (isWhite ? 1 : -1);
+        status = isValidCord(_x, _y, isWhite);
+        if (status & flag) {
+          result.push({ x: _x, y: _y });
+        }
+      });
 
       return result;
     }
 
+    function continuousMove(x, y, isWhite, direction) {
+      const result = [];
+      direction.forEach((d) => {
+        for (
+          var _x = x + d.dx, _y = y + d.dy, status;
+          (status = isValidCord(_x, _y, isWhite)) != OOB;
+          _x += d.dx, _y += d.dy
+        ) {
+          result.push({ x: _x, y: _y });
+          if (status == ENEMY) {
+            break;
+          }
+        }
+      });
+
+      return result;
+    }
+
+    function pawn(x, y, isWhite, isInit) {
+      var result = [];
+      var _x, _y, dx, dy;
+
+      if (isWhite != board.whiteTurn) {
+        return result;
+      }
+
+      if (isInit) {
+        result = result.concat(
+          discreteMove(x, y, isWhite, directions.discrete.double, EMPTY)
+        );
+      }
+      result = result.concat(
+        discreteMove(x, y, isWhite, directions.discrete.forward, EMPTY)
+      );
+
+      // kill
+      result = result.concat(
+        discreteMove(
+          x,
+          y,
+          isWhite,
+          directions.discrete.diagonal.slice(0, 2),
+          ENEMY
+        )
+      );
+
+      return result;
+    }
+
+    function bishop(x, y, isWhite, isInit) {
+      const direction = directions.continuous.diagonal;
+      return continuousMove(x, y, isWhite, direction);
+    }
+
+    function knight(x, y, isWhite, isInit) {
+      return discreteMove(
+        x,
+        y,
+        isWhite,
+        directions.discrete.lShape,
+        ENEMY | EMPTY
+      );
+    }
+
+    function rook(x, y, isWhite, isInit) {
+      const direction = directions.continuous.orthogonal;
+      return continuousMove(x, y, isWhite, direction);
+    }
+
     const availFunctions = {
       pawn: pawn,
+      bishop: bishop,
+      knight: knight,
+      rook: rook,
     };
   </script>
 
@@ -128,10 +212,16 @@
         this.colorScript = isWhite
           ? "rgba(115, 0, 0, 1)"
           : "rgba(0, 115, 0, 1)";
+        this.availColorScript = "rgba(255, 255, 0, 0.5)";
       }
 
       fill() {
         ctx.fillStyle = this.colorScript;
+        ctx.fillRect(this.x * Width, this.y * Height, Width, Height);
+      }
+
+      fillAvail() {
+        ctx.fillStyle = this.availColorScript;
         ctx.fillRect(this.x * Width, this.y * Height, Width, Height);
       }
     }
@@ -145,6 +235,7 @@
         this.sort = sort;
         this.isWhite = isWhite;
         this.ctx = ctx;
+        this.init = true;
         this.avail = [];
       }
 
@@ -159,15 +250,21 @@
       }
 
       updateAvail(whiteTurn) {
-        return (this.avail =
-          this.isWhite == board.whiteTurn
-            ? availFunctions[this.sort](this.x, this.y, this.isWhite)
-            : []);
+        return (this.avail = availFunctions[this.sort](
+          this.x,
+          this.y,
+          this.isWhite,
+          this.init
+        ));
       }
+
+      move() {}
     }
   </script>
 
   <script>
+    const IDLE = 0;
+    const READY = 1;
     class Board {
       constructor(canvas, ctx) {
         this.canvas = canvas;
@@ -180,6 +277,8 @@
             this.squares[y].push(new Square(x, y, (x + y) % 2));
           }
         }
+
+        this.state = IDLE;
       }
 
       fill() {
@@ -205,13 +304,7 @@
 
       makePawns(y, isWhite) {
         for (var x = 0; x < X; ++x) {
-          this.squares[y][x].piece = new Piece(
-            x,
-            y,
-            names[indexs.pawn],
-            isWhite,
-            this.ctx
-          );
+          this.squares[y][x].piece = new Piece(x, y, "pawn", isWhite, this.ctx);
         }
       }
 
@@ -249,12 +342,36 @@
         }
       }
 
+      showAvail(_x, _y) {
+        this.avail = [];
+        if (this.squares[_y][_x].piece) {
+          (this.x = _x), (this.y = _y);
+          this.avail = this.squares[_y][_x].piece.updateAvail();
+          for (idx = 0, _x, _y; this.avail[idx]; ++idx) {
+            var _x = this.avail[idx].x;
+            var _y = this.avail[idx].y;
+
+            this.squares[_y][_x].fillAvail();
+          }
+        }
+      }
+
+      handleMouseClick(x, y) {
+        if (this.state == IDLE) {
+          this.showAvail(x, y);
+          if (this.avail.length) {
+            this.state = READY;
+          }
+        } else if (this.state == READY) {
+          // herer
+        }
+      }
+
       setMouseClick() {
         this.canvas.onclick = (event) => {
           const _x = Math.trunc(event.clientX / Width);
           const _y = Math.trunc(event.clientY / Height);
-
-          console.log(board.squares[_y][_x].piece.updateAvail(this.whiteTurn));
+          handleMouseClick(_x, _y);
         };
       }
     }
